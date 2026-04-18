@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-paper-100 text-ink-800;
+    font-feature-settings: "palt" 1;
+  }
+  button,
+  textarea,
+  input {
+    font: inherit;
+  }
+  textarea,
+  input {
+    @apply text-ink-800;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent-400 ring-offset-2 ring-offset-white;
+  }
+}
+
+@layer components {
+  .app-shell {
+    @apply bg-white relative overflow-hidden w-full mx-auto;
+    max-width: 480px;
+    min-height: 100dvh;
+  }
+  @media (min-width: 481px) {
+    .app-shell {
+      min-height: 100dvh;
+      box-shadow:
+        0 0 0 1px rgba(23, 20, 16, 0.04),
+        0 30px 80px -20px rgba(23, 20, 16, 0.2);
+    }
+  }
+
+  .chip {
+    @apply inline-flex items-center justify-center rounded-full px-3.5 py-1.5 text-xs border border-paper-200 bg-white text-ink-600 hover:border-ink-400 hover:text-ink-800 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2;
+  }
+  .chip-selected {
+    @apply bg-ink-800 border-ink-800 text-white hover:bg-ink-900 hover:border-ink-900 hover:text-white;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-full px-5 py-3 text-sm font-medium bg-ink-800 text-white hover:bg-ink-900 disabled:bg-ink-300 disabled:cursor-not-allowed transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs text-ink-600 hover:text-ink-800 hover:bg-paper-100 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2;
+  }
+  .btn-accent {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2.5 text-sm font-medium bg-accent-500 text-white hover:bg-accent-600 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2;
+  }
+
+  .memo-link {
+    @apply w-full flex items-center gap-3 text-left py-3 px-2 rounded-lg hover:bg-paper-100 active:bg-paper-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400;
+  }
+
+  .option-row {
+    @apply w-full flex items-start gap-3 px-4 py-3.5 text-left text-ink-900 bg-white border border-paper-200 rounded-xl hover:border-ink-400 hover:bg-paper-50 active:bg-paper-100 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-400 focus-visible:ring-offset-2;
+  }
+  .check-circle {
+    @apply w-5 h-5 rounded-full border-[1.5px] border-paper-300 flex-shrink-0 flex items-center justify-center text-check-600 transition-colors;
+  }
+
+  .view-stack {
+    @apply relative w-full;
+    min-height: 100dvh;
+  }
+  .view-layer {
+    @apply absolute inset-0 bg-white;
+    will-change: transform, opacity;
+  }
+}
+
+@keyframes slide-in-from-right {
+  from {
+    transform: translate3d(100%, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+@keyframes slide-out-to-right {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(100%, 0, 0);
+  }
+}
+@keyframes slide-back-out-left {
+  from {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(-22%, 0, 0);
+    opacity: 0.4;
+  }
+}
+@keyframes slide-back-in-left {
+  from {
+    transform: translate3d(-22%, 0, 0);
+    opacity: 0.4;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+.anim-enter-forward {
+  animation: slide-in-from-right 320ms cubic-bezier(0.22, 0.68, 0.15, 1) both;
+}
+.anim-exit-forward {
+  animation: slide-back-out-left 320ms cubic-bezier(0.22, 0.68, 0.15, 1) both;
+}
+.anim-enter-back {
+  animation: slide-back-in-left 320ms cubic-bezier(0.22, 0.68, 0.15, 1) both;
+}
+.anim-exit-back {
+  animation: slide-out-to-right 320ms cubic-bezier(0.22, 0.68, 0.15, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-enter-forward,
+  .anim-exit-forward,
+  .anim-enter-back,
+  .anim-exit-back {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.001s !important;
+    animation-duration: 0.001s !important;
+  }
+}

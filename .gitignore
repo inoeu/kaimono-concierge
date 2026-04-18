@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+tsconfig.tsbuildinfo
+.env
+.env.local
+.env.*.local
+.DS_Store
+# macOS resource-fork sidecars (appear on external drives)
+._*
+*.log
+.vercel
+next-env.d.ts
+# in-repo review artefacts (not needed outside the session)
+REVIEW*.md
+ITER*_CHANGES.md
