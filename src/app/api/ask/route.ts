@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
-import { askNextQuestion } from "@/lib/gemini"
+import { askNextQuestion, staticFallbackQuestion } from "@/lib/gemini"
 import { checkRateLimit, rateLimitedJson } from "@/lib/rate-limit"
 
 const Body = z.object({
@@ -22,8 +22,20 @@ export async function POST(req: Request) {
     const blocked = rateLimitedJson(rl)
     if (blocked) return blocked
     const body = Body.parse(await req.json())
-    const question = await askNextQuestion(body)
-    return NextResponse.json({ question })
+
+    try {
+      const question = await askNextQuestion(body)
+      return NextResponse.json({ question, fallback: false })
+    } catch (e) {
+      console.error("[api/ask] gemini failed, using static fallback", e)
+      const question = staticFallbackQuestion(body.answers)
+      return NextResponse.json({
+        question,
+        fallback: true,
+        fallbackReason:
+          "AIが一時的に応答できなかったため、定型の質問を表示しています。"
+      })
+    }
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json(
@@ -33,7 +45,10 @@ export async function POST(req: Request) {
     }
     console.error("[api/ask]", e)
     return NextResponse.json(
-      { error: "いま質問を生成できません。少し待ってからもう一度お試しください。" },
+      {
+        error:
+          "いま質問を生成できません。少し待ってからもう一度お試しください。"
+      },
       { status: 500 }
     )
   }

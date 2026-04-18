@@ -193,6 +193,71 @@ export type AskNextInput = {
   answers: HearingAnswer[]
 }
 
+// Generic pre-baked questions. Used as a last-resort so the UX keeps moving
+// even when Gemini is unavailable (quota / outage / schema flakiness).
+// The order is intentionally practical: budget → use → preference → priority.
+const FALLBACK_QUESTIONS: HearingQuestion[] = [
+  {
+    id: "f1",
+    question: "だいたいの予算はどのくらいをお考えですか？",
+    hint: "価格帯で候補を絞り込みやすくなります。",
+    allowCustom: true,
+    allowSkip: true,
+    options: [
+      { label: "できるだけ安め", value: "cheap", description: "コスパ最優先" },
+      { label: "標準的な価格帯", value: "mid", description: "平均的な品質・価格" },
+      { label: "少し高くても良いもの", value: "premium", description: "品質重視" },
+      { label: "特にこだわらない", value: "any" }
+    ]
+  },
+  {
+    id: "f2",
+    question: "どんな場面で使うことが多いですか？",
+    hint: "用途がはっきりするほどおすすめを絞りやすくなります。",
+    allowCustom: true,
+    allowSkip: true,
+    options: [
+      { label: "毎日・日常的に使う", value: "daily" },
+      { label: "週末・休日に使う", value: "weekend" },
+      { label: "特別な日・プレゼント", value: "gift" },
+      { label: "まだ決めていない", value: "undecided" }
+    ]
+  },
+  {
+    id: "f3",
+    question: "誰が使う想定ですか？",
+    hint: "利用人数や年齢層でサイズ・機能が変わります。",
+    allowCustom: true,
+    allowSkip: true,
+    options: [
+      { label: "自分ひとり", value: "solo" },
+      { label: "パートナーと", value: "couple" },
+      { label: "家族全員", value: "family" },
+      { label: "贈る相手のため", value: "for_other" }
+    ]
+  },
+  {
+    id: "f4",
+    question: "特に重視したいポイントは？",
+    hint: "最後の絞り込みに使います。",
+    allowCustom: true,
+    allowSkip: true,
+    options: [
+      { label: "品質・信頼性", value: "quality" },
+      { label: "デザイン・見た目", value: "design" },
+      { label: "使いやすさ", value: "usability" },
+      { label: "コストパフォーマンス", value: "cost" }
+    ]
+  }
+]
+
+export function staticFallbackQuestion(
+  answers: HearingAnswer[]
+): HearingQuestion | null {
+  const idx = answers.length
+  return FALLBACK_QUESTIONS[idx] ?? null
+}
+
 export async function askNextQuestion(
   input: AskNextInput
 ): Promise<HearingQuestion | null> {
