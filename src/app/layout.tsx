@@ -37,7 +37,10 @@ export const metadata: Metadata = {
     card: "summary",
     title: "かいもの相談 | AI買い物コンシェルジュ"
   },
-  robots: { index: true, follow: true }
+  robots: { index: true, follow: true },
+  verification: {
+    google: "akyjbbOA0VkUMxt0qXBz-oJcctdFfOaKGq28Hu-KiMI"
+  }
 }
 
 export const viewport: Viewport = {
