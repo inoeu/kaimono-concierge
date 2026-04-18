@@ -1056,6 +1056,12 @@ function ResultView({
 
 function NoticeBanner({ notice }: { notice: RecommendNotice }) {
   const isMock = notice.kind === "mock"
+  const label =
+    notice.kind === "mock"
+      ? "デモ表示中"
+      : notice.kind === "loose-search"
+        ? "検索条件を広めに"
+        : "お知らせ"
   return (
     <div
       role="status"
@@ -1065,9 +1071,7 @@ function NoticeBanner({ notice }: { notice: RecommendNotice }) {
           : "bg-paper-100 border-paper-200 text-ink-600"
       }`}
     >
-      <span className="font-semibold mr-1">
-        {isMock ? "デモ表示中" : "お知らせ"}
-      </span>
+      <span className="font-semibold mr-1">{label}</span>
       {notice.message}
     </div>
   )

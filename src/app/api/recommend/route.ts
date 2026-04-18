@@ -6,7 +6,7 @@ import {
   generateSearchQuery,
   rankProducts
 } from "@/lib/gemini"
-import { searchRakuten } from "@/lib/rakuten"
+import { searchRakutenRelaxed } from "@/lib/rakuten"
 import { getMockProducts } from "@/lib/mock-products"
 import { checkRateLimit, rateLimitedJson } from "@/lib/rate-limit"
 import type {
@@ -31,6 +31,17 @@ const Body = z.object({
 
 const MIN_SELECTED = 2
 const TARGET_SELECTED = 4
+
+function buildLooseMessage(dropped: ("price" | "ngKeyword" | "keywordTail")[]): string {
+  const parts: string[] = []
+  if (dropped.includes("price")) parts.push("価格帯")
+  if (dropped.includes("ngKeyword")) parts.push("除外ワード")
+  if (dropped.includes("keywordTail")) parts.push("キーワードの一部")
+  if (parts.length === 0) {
+    return "条件を広めに取り直して再検索しました。"
+  }
+  return `ぴったり合う商品が少なかったため、${parts.join("・")}を外して広めに検索しました。`
+}
 
 export async function POST(req: Request) {
   try {
@@ -65,16 +76,21 @@ export async function POST(req: Request) {
     let candidates: Product[] = []
     let usedMock = false
     try {
-      candidates = await searchRakuten({
+      const outcome = await searchRakutenRelaxed({
         keyword: query.keyword,
         ngKeyword: query.ngKeyword,
         minPrice: query.minPrice,
         maxPrice: query.maxPrice,
         hits: 30,
-        // Use "standard" (relevance+popularity) as base — it respects keyword
-        // matching strength better than pure review-average sorting.
         sort: "standard"
       })
+      candidates = outcome.items
+      if (outcome.relaxedLevel > 0 && outcome.items.length > 0) {
+        notices.push({
+          kind: "loose-search",
+          message: buildLooseMessage(outcome.droppedFilters)
+        })
+      }
     } catch (e) {
       console.error("[api/recommend] Rakuten API failed", e)
       candidates = getMockProducts(query.keyword)

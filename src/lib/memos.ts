@@ -136,6 +136,7 @@ function isNoticeKind(v: unknown): v is RecommendNotice["kind"] {
     v === "mock" ||
     v === "fallback-search" ||
     v === "fallback-rank" ||
+    v === "loose-search" ||
     v === "empty"
   )
 }

@@ -7,7 +7,9 @@ const Body = z.object({
   product_id: z.string().min(1).max(200),
   keyword: z.string().min(1).max(120).optional(),
   placement: z.enum(["home", "result"]).default("home"),
-  notice: z.enum(["mock", "fallback-search", "fallback-rank", "empty"]).optional(),
+  notice: z
+    .enum(["mock", "fallback-search", "fallback-rank", "loose-search", "empty"])
+    .optional(),
   shop: z.string().max(120).optional(),
   price: z.number().int().nonnegative().optional()
 })

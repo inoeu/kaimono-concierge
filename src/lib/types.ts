@@ -42,7 +42,12 @@ export type RankedProduct = {
   reason: string
 }
 
-export type RecommendNoticeKind = "mock" | "fallback-search" | "fallback-rank" | "empty"
+export type RecommendNoticeKind =
+  | "mock"
+  | "fallback-search"
+  | "fallback-rank"
+  | "loose-search"
+  | "empty"
 
 export type RecommendNotice = {
   kind: RecommendNoticeKind

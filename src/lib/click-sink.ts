@@ -11,7 +11,7 @@ export type ClickEvent = {
   product_id: string
   keyword?: string
   placement: "home" | "result"
-  notice?: "mock" | "fallback-search" | "fallback-rank" | "empty"
+  notice?: "mock" | "fallback-search" | "fallback-rank" | "loose-search" | "empty"
   shop?: string
   price?: number
 }

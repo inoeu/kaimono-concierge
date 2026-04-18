@@ -120,6 +120,76 @@ export async function searchRakuten(
     .filter((p): p is Product => p !== null)
 }
 
+/**
+ * Progressive relaxation search: try the user's intended query first, then
+ * drop filters one at a time until we get non-zero results or run out of
+ * options. Returns the level that succeeded so the caller can inform the
+ * user that a broader search was used.
+ *
+ * Levels:
+ *   0 = as requested (full keyword + ngKeyword + price range)
+ *   1 = drop price range
+ *   2 = drop ngKeyword as well
+ *   3 = shorten keyword to the first 2 meaningful tokens
+ */
+export type RelaxedSearchOutcome = {
+  items: Product[]
+  relaxedLevel: 0 | 1 | 2 | 3
+  droppedFilters: ("price" | "ngKeyword" | "keywordTail")[]
+}
+
+function firstTwoTokens(keyword: string): string {
+  const parts = keyword
+    .split(/[\s\u3000]+/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+  return parts.slice(0, 2).join(" ") || keyword
+}
+
+export async function searchRakutenRelaxed(
+  opts: RakutenSearchOptions
+): Promise<RelaxedSearchOutcome> {
+  const dropped: RelaxedSearchOutcome["droppedFilters"] = []
+
+  // level 0 — as requested
+  let items = await searchRakuten(opts)
+  if (items.length > 0) return { items, relaxedLevel: 0, droppedFilters: [] }
+
+  // level 1 — drop price range
+  if (opts.minPrice != null || opts.maxPrice != null) {
+    items = await searchRakuten({ ...opts, minPrice: undefined, maxPrice: undefined })
+    dropped.push("price")
+    if (items.length > 0) return { items, relaxedLevel: 1, droppedFilters: [...dropped] }
+  }
+
+  // level 2 — drop ngKeyword as well
+  if (opts.ngKeyword) {
+    items = await searchRakuten({
+      ...opts,
+      minPrice: undefined,
+      maxPrice: undefined,
+      ngKeyword: undefined
+    })
+    dropped.push("ngKeyword")
+    if (items.length > 0) return { items, relaxedLevel: 2, droppedFilters: [...dropped] }
+  }
+
+  // level 3 — shorten keyword
+  const short = firstTwoTokens(opts.keyword)
+  if (short !== opts.keyword) {
+    items = await searchRakuten({
+      ...opts,
+      minPrice: undefined,
+      maxPrice: undefined,
+      ngKeyword: undefined,
+      keyword: short
+    })
+    dropped.push("keywordTail")
+  }
+
+  return { items, relaxedLevel: 3, droppedFilters: dropped }
+}
+
 function normalize(it: RakutenItemRaw): Product | null {
   const rawAffiliate = it.affiliateUrl || it.itemUrl
   const safeAffiliate = sanitizeAffiliateUrl(rawAffiliate)

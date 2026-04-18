@@ -14,11 +14,11 @@ vi.mock("@/lib/gemini", async () => {
 })
 
 vi.mock("@/lib/rakuten", () => ({
-  searchRakuten: vi.fn()
+  searchRakutenRelaxed: vi.fn()
 }))
 
 import { generateSearchQuery, rankProducts } from "@/lib/gemini"
-import { searchRakuten } from "@/lib/rakuten"
+import { searchRakutenRelaxed } from "@/lib/rakuten"
 import { POST } from "@/app/api/recommend/route"
 
 function product(id: string, over: Partial<Product> = {}): Product {
@@ -35,6 +35,17 @@ function product(id: string, over: Partial<Product> = {}): Product {
     caption: "caption",
     ...over
   }
+}
+
+type RelaxedLevel = 0 | 1 | 2 | 3
+type DroppedFilter = "price" | "ngKeyword" | "keywordTail"
+
+function rakutenOk(
+  items: Product[],
+  relaxedLevel: RelaxedLevel = 0,
+  droppedFilters: DroppedFilter[] = []
+) {
+  return { items, relaxedLevel, droppedFilters }
 }
 
 function req(ip: string, body: unknown): Request {
@@ -62,13 +73,15 @@ describe("/api/recommend branches", () => {
       query: { keyword: "4Kテレビ" },
       fallback: false
     })
-    vi.mocked(searchRakuten).mockResolvedValue([
-      product("a"),
-      product("b"),
-      product("c"),
-      product("d"),
-      product("e")
-    ])
+    vi.mocked(searchRakutenRelaxed).mockResolvedValue(
+      rakutenOk([
+        product("a"),
+        product("b"),
+        product("c"),
+        product("d"),
+        product("e")
+      ])
+    )
     vi.mocked(rankProducts).mockResolvedValue({
       summary_condition: "4Kテレビで予算5万円以内",
       selected: [
@@ -91,10 +104,9 @@ describe("/api/recommend branches", () => {
       query: { keyword: "テレビ" },
       fallback: true
     })
-    vi.mocked(searchRakuten).mockResolvedValue([
-      product("a"),
-      product("b")
-    ])
+    vi.mocked(searchRakutenRelaxed).mockResolvedValue(
+      rakutenOk([product("a"), product("b")])
+    )
     vi.mocked(rankProducts).mockResolvedValue({
       summary_condition: "テレビ",
       selected: [
@@ -114,7 +126,7 @@ describe("/api/recommend branches", () => {
       query: { keyword: "テレビ" },
       fallback: false
     })
-    vi.mocked(searchRakuten).mockRejectedValue(new Error("rakuten down"))
+    vi.mocked(searchRakutenRelaxed).mockRejectedValue(new Error("rakuten down"))
     vi.mocked(rankProducts).mockResolvedValue({
       summary_condition: "テレビ",
       selected: [
@@ -139,16 +151,42 @@ describe("/api/recommend branches", () => {
       query: { keyword: "zzz_nonsense_xxx" },
       fallback: false
     })
-    vi.mocked(searchRakuten).mockResolvedValue([])
+    vi.mocked(searchRakutenRelaxed).mockResolvedValue(rakutenOk([], 3, [
+      "price",
+      "ngKeyword",
+      "keywordTail"
+    ]))
 
     const r = await POST(req("1.1.1.4", { userInput: "zzz_nonsense_xxx" }))
     const body = await jsonOf(r)
-    // With a nonsense keyword, mock products may still return a generic
-    // fallback list. If so we should see `mock`; if not we see `empty`.
     const notices = body.notices as Array<{ kind: string }>
     expect(
       notices.some((n) => n.kind === "mock" || n.kind === "empty")
     ).toBe(true)
+  })
+
+  it("emits loose-search notice when relaxation level > 0", async () => {
+    vi.mocked(generateSearchQuery).mockResolvedValue({
+      query: { keyword: "肌触り やわらか バスタオル", minPrice: 3000, maxPrice: 8000 },
+      fallback: false
+    })
+    vi.mocked(searchRakutenRelaxed).mockResolvedValue(
+      rakutenOk([product("a"), product("b")], 1, ["price"])
+    )
+    vi.mocked(rankProducts).mockResolvedValue({
+      summary_condition: "バスタオル",
+      selected: [
+        { product_id: "a", one_liner: "x", fits: ["a"], unfits: ["b"], reason: "r" },
+        { product_id: "b", one_liner: "y", fits: ["a"], unfits: ["b"], reason: "r" }
+      ]
+    })
+
+    const r = await POST(req("1.1.1.7", { userInput: "バスタオル" }))
+    const body = await jsonOf(r)
+    const notices = body.notices as Array<{ kind: string; message: string }>
+    const loose = notices.find((n) => n.kind === "loose-search")
+    expect(loose).toBeTruthy()
+    expect(loose?.message).toContain("価格帯")
   })
 
   it("emits fallback-rank when LLM returns no valid product_ids", async () => {
@@ -156,10 +194,9 @@ describe("/api/recommend branches", () => {
       query: { keyword: "テレビ" },
       fallback: false
     })
-    vi.mocked(searchRakuten).mockResolvedValue([
-      product("real-a"),
-      product("real-b")
-    ])
+    vi.mocked(searchRakutenRelaxed).mockResolvedValue(
+      rakutenOk([product("real-a"), product("real-b")])
+    )
     vi.mocked(rankProducts).mockResolvedValue({
       summary_condition: "テレビ",
       selected: [
@@ -173,7 +210,6 @@ describe("/api/recommend branches", () => {
     const notices = body.notices as Array<{ kind: string }>
     expect(notices.some((n) => n.kind === "fallback-rank")).toBe(true)
     const selected = body.selected as Array<{ product_id: string }>
-    // Top-up with real candidates
     expect(selected.length).toBeGreaterThan(0)
     for (const s of selected) {
       expect(["real-a", "real-b"]).toContain(s.product_id)
@@ -186,7 +222,7 @@ describe("/api/recommend branches", () => {
       fallback: false
     })
     const cands = ["a", "b", "c", "d", "e", "f"].map((id) => product(id))
-    vi.mocked(searchRakuten).mockResolvedValue(cands)
+    vi.mocked(searchRakutenRelaxed).mockResolvedValue(rakutenOk(cands))
     vi.mocked(rankProducts).mockResolvedValue({
       summary_condition: "テレビ",
       selected: cands.map((c) => ({
@@ -211,7 +247,9 @@ describe("/api/recommend branches", () => {
       query: { keyword: "テレビ" },
       fallback: false
     })
-    vi.mocked(searchRakuten).mockResolvedValue([product("a"), product("b")])
+    vi.mocked(searchRakutenRelaxed).mockResolvedValue(
+      rakutenOk([product("a"), product("b")])
+    )
     vi.mocked(rankProducts).mockResolvedValue({
       summary_condition: "テレビ",
       selected: [
@@ -219,7 +257,6 @@ describe("/api/recommend branches", () => {
         { product_id: "b", one_liner: "y", fits: ["a"], unfits: ["b"], reason: "r" }
       ]
     })
-    // /api/recommend limit is 10 per 60s. 11 requests ⇒ last one 429.
     const results: number[] = []
     for (let i = 0; i < 11; i++) {
       const r = await POST(req("9.9.9.9", { userInput: "テレビ" }))
