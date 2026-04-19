@@ -193,9 +193,12 @@ export type AskNextInput = {
   answers: HearingAnswer[]
 }
 
-// Generic pre-baked questions. Used as a last-resort so the UX keeps moving
+// Minimum pre-baked questions. Used as a last-resort so the UX keeps moving
 // even when Gemini is unavailable (quota / outage / schema flakiness).
-// The order is intentionally practical: budget → use → preference → priority.
+//
+// We deliberately keep this SHORT (2 questions) — more than that would feel
+// heavy when the "AI がオフ" 状態になっているときに、定型質問で delay を積む
+// のは UX を悪化させるだけです。高評価の定番をすぐ出す方を優先します。
 const FALLBACK_QUESTIONS: HearingQuestion[] = [
   {
     id: "f1",
@@ -212,34 +215,8 @@ const FALLBACK_QUESTIONS: HearingQuestion[] = [
   },
   {
     id: "f2",
-    question: "どんな場面で使うことが多いですか？",
-    hint: "用途がはっきりするほどおすすめを絞りやすくなります。",
-    allowCustom: true,
-    allowSkip: true,
-    options: [
-      { label: "毎日・日常的に使う", value: "daily" },
-      { label: "週末・休日に使う", value: "weekend" },
-      { label: "特別な日・プレゼント", value: "gift" },
-      { label: "まだ決めていない", value: "undecided" }
-    ]
-  },
-  {
-    id: "f3",
-    question: "誰が使う想定ですか？",
-    hint: "利用人数や年齢層でサイズ・機能が変わります。",
-    allowCustom: true,
-    allowSkip: true,
-    options: [
-      { label: "自分ひとり", value: "solo" },
-      { label: "パートナーと", value: "couple" },
-      { label: "家族全員", value: "family" },
-      { label: "贈る相手のため", value: "for_other" }
-    ]
-  },
-  {
-    id: "f4",
     question: "特に重視したいポイントは？",
-    hint: "最後の絞り込みに使います。",
+    hint: "評価の高い定番から絞り込むのに使います。",
     allowCustom: true,
     allowSkip: true,
     options: [
@@ -277,16 +254,28 @@ export async function askNextQuestion(
   const prompt = `ユーザーの最初の入力（相談条件データ）: 「${userInput}」
 
 ${history ? `これまでのヒアリング:\n${history}\n` : ""}
-次にユーザーに聞くべき質問を1つ生成してください。
-優先順位: 予算 > 主な使用シーン / 人数 > 重視ポイント > その他細かい条件
+ここまでの回答数: ${input.answers.length} 問
 
-判断:
-- ヒアリングが${input.answers.length}問目です。4問聞き終わっていれば done=true を返してください
-- まだ必要なら done=false にして、question/hint/options を返してください
+# あなたの判断（最重要）
+**商品の性質に応じて、本当に必要な質問だけ聞いてください。**
+- ティッシュ、トイレットペーパー、洗剤詰め替え、食品などの「定番の日用品」は、**0〜1問で十分**
+  （ユーザーは"迷いたくない"。定番・高評価から選んでほしいだけのことが多い）
+- ドライヤー、炊飯器、掃除機などの「中くらいの家電」は、**1〜2問**
+- テレビ、ノートPC、洗濯機、家具など「高額・長く使うもの」は、**2〜4問**
+- 4問を超える質問はしてはいけません（上限）
 
-options の書き方:
-- label は**直感的な日常語**
-- 数値・単位だけのラベルは禁止（description 側へ）
+# done=true を返す条件
+- 次のいずれかを満たしたら、迷わず done=true にしてください：
+  - ユーザー入力とここまでの回答から、**「口コミ評価の高い定番」で推薦できる**と判断できる
+  - これ以上の質問は選択肢を絞るよりユーザーを疲れさせる方が大きいと判断できる
+  - 既に 4 問に達している
+- 「予算」は必ず聞かないといけないわけではありません。500円程度の消耗品では不要です。
+  逆に 1 万円を超える商品では聞くことが多いです。
+
+# done=false を返す場合の質問設計
+- 質問は一度に1問
+- 優先順位: 予算 > 使用シーン / 人数 > 重視ポイント
+- label は**直感的な日常語**（数値・単位だけのラベルは禁止、それは description へ）
 - value は英数字スネークケース`
 
   const { parsed } = await generateWithRetry(
@@ -654,14 +643,21 @@ ${history || "(なし)"}
 以下の商品候補の中から、ユーザー条件に最も合う2〜4件を選び、
 各商品について「向いている人」「向いていない人」を正直に書いてください。
 
-商品候補（compact JSON, product_id は "id" フィールド）:
+商品候補（compact JSON, product_id は "id" フィールド / 候補は既にレビュー件数と評価を考慮して並べ替え済み）:
 ${JSON.stringify(compactProducts)}
 
-出力ルール:
+# 選定の方針（重要）
+- **ユーザー条件が曖昧・漠然としている場合は、定番・高評価・レビュー件数の多い商品を優先してください**
+  （例: 「ティッシュ」とだけ言われたら、尖った選択肢より、評価の高い定番を選ぶ）
+- 明確な条件（予算/サイズ/機能）がある場合のみ、それに合わせて尖った商品を混ぜてください
+- ニッチで良くレビューもされていない商品を、無理に「隠れた名品」として推さないでください
+- レビュー件数が極端に少ない（3件未満）商品は、代替候補があるなら避けてください
+
+# 出力ルール
 - 選ぶのは 2〜4 件
 - product_id には、必ず候補リストの "id" をそのまま使う
 - 商品情報にないスペックを捏造しない
-- 向いていない人も必ず1〜2個書く
+- 向いていない人も必ず1〜2個書く（本当に条件が薄い時は「比較検討したい方」「もっと尖った用途を求める方」など）
 - one_liner は20文字以内
 - fits / unfits は各要素80文字以内`
 
