@@ -39,6 +39,20 @@ describe("fallbackKeyword", () => {
     expect(out).toMatch(/テレビ/)
     expect(out).not.toMatch(/、/)
   })
+
+  it("expands well-known single katakana tokens", () => {
+    expect(fallbackKeyword("リップ")).toBe("リップ 口紅")
+    expect(fallbackKeyword("シャンプー")).toBe("シャンプー ヘアケア")
+    expect(fallbackKeyword("カメラ")).toBe("カメラ 本体")
+  })
+
+  it("does not expand when user already provided multiple words", () => {
+    expect(fallbackKeyword("リップ クリーム")).toBe("リップ クリーム")
+  })
+
+  it("does not expand unknown tokens", () => {
+    expect(fallbackKeyword("ガジェット")).toBe("ガジェット")
+  })
 })
 
 describe("fallbackRank", () => {

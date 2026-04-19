@@ -533,12 +533,63 @@ ${history || "(なし)"}
   }
 }
 
+// Minimal expansion dictionary for the 30 or so most common ambiguous
+// single-word queries. Used only when Gemini can't generate a rich keyword —
+// gives the relevance filter better material to work with and reduces the
+// chance that Rakuten substring matches drag in unrelated categories.
+// Key must be normalized (NFKC, trimmed) to match.
+const KEYWORD_EXPANSIONS: Record<string, string> = {
+  // コスメ
+  リップ: "リップ 口紅",
+  口紅: "口紅 リップ",
+  アイシャドウ: "アイシャドウ コスメ",
+  ファンデ: "ファンデーション メイク",
+  マスカラ: "マスカラ コスメ",
+  ルージュ: "ルージュ 口紅",
+  // ヘアケア/ボディケア
+  シャンプー: "シャンプー ヘアケア",
+  リンス: "リンス コンディショナー",
+  トリートメント: "トリートメント ヘアケア",
+  // キッチン/容器
+  コップ: "コップ タンブラー",
+  マグ: "マグカップ",
+  // アクセサリ/服飾
+  シャツ: "シャツ 洋服",
+  カバン: "カバン バッグ",
+  バッグ: "バッグ 鞄",
+  リュック: "リュック バックパック",
+  // ガジェット
+  カメラ: "カメラ 本体",
+  マイク: "マイク 本体",
+  スマホ: "スマートフォン スマホ",
+  タブレット: "タブレット 本体",
+  イヤホン: "イヤホン ワイヤレス",
+  ヘッドホン: "ヘッドホン ヘッドフォン",
+  // 生活雑貨
+  マスク: "マスク 不織布",
+  メガネ: "メガネ めがね",
+  サングラス: "サングラス UVカット",
+  // 日用品
+  ソープ: "ソープ 石鹸",
+  タオル: "タオル 綿",
+  // 食品/消耗
+  コーヒー: "コーヒー ドリップ"
+}
+
 export function fallbackKeyword(userInput: string): string {
   const normalized = normalizeUserText(userInput, 80)
     .replace(/[?？。！!、,]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
-  return normalized.slice(0, 40) || "おすすめ"
+  const base = normalized.slice(0, 40)
+  if (!base) return "おすすめ"
+  // If the user typed just one short token that's in our expansion map,
+  // enrich it. This adds a second required keyword so Rakuten's substring
+  // matching no longer pulls in unrelated compounds.
+  if (!base.includes(" ") && KEYWORD_EXPANSIONS[base]) {
+    return KEYWORD_EXPANSIONS[base]
+  }
+  return base
 }
 
 // ---------- ranking ----------
