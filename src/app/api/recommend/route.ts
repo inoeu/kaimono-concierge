@@ -7,6 +7,7 @@ import {
   rankProducts
 } from "@/lib/gemini"
 import { searchRakutenRelaxed } from "@/lib/rakuten"
+import { filterByRelevance } from "@/lib/relevance"
 import { getMockProducts } from "@/lib/mock-products"
 import { checkRateLimit, rateLimitedJson } from "@/lib/rate-limit"
 import type {
@@ -84,12 +85,25 @@ export async function POST(req: Request) {
         hits: 30,
         sort: "standard"
       })
-      candidates = outcome.items
+      // Relevance filter: short katakana keywords like "リップ" otherwise
+      // bring back substring-polluted items like "ドリップコーヒー".
+      const beforeFilter = outcome.items.length
+      const filtered = filterByRelevance(outcome.items, query.keyword)
+      // If the filter wiped everything, keep the unfiltered list — better to
+      // show loose-but-visible matches than an empty page. Otherwise trust it.
+      candidates = filtered.length > 0 ? filtered : outcome.items
       if (outcome.relaxedLevel > 0 && outcome.items.length > 0) {
         notices.push({
           kind: "loose-search",
           message: buildLooseMessage(outcome.droppedFilters)
         })
+      }
+      if (
+        filtered.length > 0 &&
+        filtered.length < beforeFilter &&
+        !notices.some((n) => n.kind === "loose-search")
+      ) {
+        // don't push an extra notice — silent filter is fine
       }
     } catch (e) {
       console.error("[api/recommend] Rakuten API failed", e)
